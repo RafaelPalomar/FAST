@@ -14,7 +14,7 @@ print('Done')
 %enddef
 
 
-%module(moduleimport=MODULEIMPORT) fast
+%module(moduleimport=MODULEIMPORT, directors=1) fast
 %{
 
 
@@ -258,3 +258,36 @@ float* _intToFloatPointer(std::size_t intPointer) {
     self.create(self._intToFloatPointer(array_interface['data'][0]), fast_shape)
 %}
 }
+
+// Python process object functionality using directors feature
+
+%feature("director") Operator;
+%shared_ptr(fast::PythonProcessObject)
+
+%inline %{
+
+namespace fast {
+    class Operator {
+    public:
+        virtual void doStuff() = 0;
+        virtual ~Operator() {};
+    };
+
+    class PythonProcessObject : public ProcessObject {
+        FAST_OBJECT(PythonProcessObject)
+    public:
+        void setOperator(Operator* op) {
+            m_operator = op;
+        }
+        void execute() {
+            m_operator->doStuff();
+        }
+        virtual ~PythonProcessObject() {};
+        PythonProcessObject() {
+            mIsModified = true;
+        }
+    private:
+        Operator* m_operator;
+    };
+}
+%}
