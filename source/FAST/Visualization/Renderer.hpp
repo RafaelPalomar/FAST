@@ -4,14 +4,14 @@
 #include "FAST/Data/DataBoundingBox.hpp"
 #include "FAST/Data/SpatialDataObject.hpp"
 #include <mutex>
-#include <QOpenGLFunctions_3_3_Core>
+#include <QOpenGLFunctions_3_0>
 
 namespace fast {
 
 class View;
 class DataBoundingBox;
 
-class FAST_EXPORT  Renderer : public ProcessObject, protected QOpenGLFunctions_3_3_Core {
+class FAST_EXPORT  Renderer : public ProcessObject, protected QOpenGLFunctions_3_0 {
     public:
         typedef std::shared_ptr<Renderer> pointer;
         virtual void draw(Matrix4f perspectiveMatrix, Matrix4f viewingMatrix, float zNear, float zFar, bool mode2D) = 0;

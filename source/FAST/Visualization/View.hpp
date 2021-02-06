@@ -14,7 +14,7 @@ namespace fast {
 
 class ComputationThread;
 
-class FAST_EXPORT  View : public QGLWidget, public ProcessObject, protected QOpenGLFunctions_3_3_Core {
+class FAST_EXPORT  View : public QGLWidget, public ProcessObject, protected QOpenGLFunctions_3_0 {
     //FAST_OBJECT(View)
     Q_OBJECT
     public:

@@ -78,9 +78,11 @@ void BoundingBoxRenderer::draw(Matrix4f perspectiveMatrix, Matrix4f viewingMatri
     activateShader();
     setShaderUniform("perspectiveTransform", perspectiveMatrix);
     setShaderUniform("viewTransform", viewingMatrix);
+    /*
     auto colorsIndex = glGetUniformBlockIndex(getShaderProgram(), "Colors");   
 	glUniformBlockBinding(getShaderProgram(), colorsIndex, 0);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_colorsUBO); 
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_colorsUBO);
+     */
     // For all input data
     for(auto it : mDataToRender) {
         auto boxes = std::static_pointer_cast<BoundingBoxSet>(it.second);

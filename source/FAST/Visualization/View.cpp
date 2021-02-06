@@ -62,8 +62,8 @@ void View::setBackgroundColor(Color color) {
 
 QGLFormat View::getGLFormat() {
     QGLFormat qglFormat = QGLFormat::defaultFormat();
-    qglFormat.setVersion(3, 3);
-    qglFormat.setProfile(QGLFormat::CoreProfile);
+    qglFormat.setVersion(3, 0);
+    qglFormat.setProfile(QGLFormat::NoProfile);
     return qglFormat;
 }
 

@@ -139,6 +139,12 @@ void Window::initializeQtApp() {
         if(!mMainGLContext->isValid()) {
             throw Exception("Qt GL context is invalid!");
         }
+        // Print out some information
+        mMainGLContext->makeCurrent();
+        auto string = glGetString(GL_VERSION);
+        Reporter::info() << "OpenGL version " << string << Reporter::end();
+        string = glGetString(GL_SHADING_LANGUAGE_VERSION);
+        Reporter::info() << "OpenGL Shading language version " << string << Reporter::end();
     }
 
     // There is a bug in AMD OpenCL related to comma (,) as decimal point
