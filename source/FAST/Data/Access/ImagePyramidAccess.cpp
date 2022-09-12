@@ -99,11 +99,14 @@ void ImagePyramidAccess::readVSITileToBuffer(vsi_tile_header tile, uchar* data) 
 std::unique_ptr<uchar[]> ImagePyramidAccess::getPatchData(int level, int x, int y, int width, int height) {
     const int levelWidth = m_image->getLevelWidth(level);
     const int levelHeight = m_image->getLevelHeight(level);
-    const int channels = m_image->getNrOfChannels();
+    int channels = m_image->getNrOfChannels();
     const int tileWidth = m_image->getLevelTileWidth(level);
     const int tileHeight = m_image->getLevelTileHeight(level);
     auto data = std::make_unique<uchar[]>(width*height*channels);
     if(m_tiffHandle != nullptr) {
+        channels = 3;
+        auto data = std::make_unique<uchar[]>(width*height*channels);
+        std::cout << "Reading TIFF tile: " << std::endl;
         // Read all tiles within region, then crop
         if(!isPatchInitialized(level, x, y)) {
             // Tile has not be initialized, fill with zeros and return..
@@ -153,6 +156,7 @@ std::unique_ptr<uchar[]> ImagePyramidAccess::getPatchData(int level, int x, int 
             }
              */
         }
+        return data;
 
     } else if(m_fileHandle != nullptr) {
         int scale = (float)m_image->getFullWidth()/levelWidth;
@@ -349,7 +353,7 @@ std::shared_ptr<Image> ImagePyramidAccess::getPatchAsImage(int level, int tileX,
 
     float scale = m_image->getLevelScale(level);
     Vector3f spacing = m_image->getSpacing();
-    auto image = Image::create(tile.width, tile.height, TYPE_UINT8, m_image->getNrOfChannels(), std::move(data));
+    auto image = Image::create(tile.width, tile.height, TYPE_UINT8, m_tiffHandle != nullptr ? 3: m_image->getNrOfChannels(), std::move(data));
     image->setSpacing(Vector3f(
             scale*spacing.x(),
             scale*spacing.y(),
@@ -366,6 +370,15 @@ std::shared_ptr<Image> ImagePyramidAccess::getPatchAsImage(int level, int tileX,
         channelConverter->setInputData(image);
 
         return channelConverter->updateAndGetOutputData<Image>();
+    } else if(m_tiffHandle != nullptr) {
+            std::cout << "Channels: " << image->getNrOfChannels() << std::endl;
+            auto channelConverter = ImageChannelConverter::New();
+            channelConverter->setChannelsToRemove(false, true, true, false);
+            channelConverter->setInputData(image);
+            image = channelConverter->updateAndGetOutputData<Image>();
+            std::cout << "Channels: " << image->getNrOfChannels() << std::endl;
+            std::cout << "Type: " << (image->getDataType() == TYPE_UINT8 ? "OK" : "nope") << std::endl;
+            return image;
     } else {
         return image;
     }
@@ -399,10 +412,18 @@ void ImagePyramidAccess::setPatch(int level, int x, int y, Image::pointer patch)
     auto patchAccess = patch->getImageAccess(ACCESS_READ);
     auto data = (uchar*)patchAccess->get();
     uint32_t tile_id;
+    auto colorData = make_uninitialized_unique<uchar[]>(patch->getNrOfVoxels()*3);
     {
         std::lock_guard<std::mutex> lock(m_readMutex);
         TIFFSetDirectory(m_tiffHandle, level);
-        TIFFWriteTile(m_tiffHandle, (void *) data, x, y, 0, 0);
+        // Convert single channel to 3 channel
+        for(int i = 0; i < patch->getNrOfVoxels(); ++i) {
+            colorData[i*3] = data[i];
+            colorData[i*3+1] = data[i];
+            colorData[i*3+2] = data[i];
+        }
+
+        TIFFWriteTile(m_tiffHandle, (void *) colorData.get(), x, y, 0, 0);
         TIFFCheckpointDirectory(m_tiffHandle);
         tile_id = TIFFComputeTile(m_tiffHandle, x, y, 0, 0);
     }
@@ -418,8 +439,8 @@ void ImagePyramidAccess::setPatch(int level, int x, int y, Image::pointer patch)
     m_image->setDirtyPatch(level, patchIdX, patchIdY);
 
     // Propagate upwards
-    auto previousData = std::make_unique<uchar[]>(patch->getNrOfVoxels()*patch->getNrOfChannels());
-    std::memcpy(previousData.get(), data, patch->getNrOfVoxels()*patch->getNrOfChannels());
+    auto previousData = std::make_unique<uchar[]>(patch->getNrOfVoxels()*3);
+    std::memcpy(colorData.get(), data, patch->getNrOfVoxels()*3);
     const auto channels = m_image->getNrOfChannels();
     while(level < m_image->getNrOfLevels()-1) {
         const auto previousTileWidth = m_image->getLevelTileWidth(level);
@@ -438,6 +459,7 @@ void ImagePyramidAccess::setPatch(int level, int x, int y, Image::pointer patch)
         auto newData = getPatchData(level, x, y, tileWidth, tileHeight);
 
         // Downsample tile from previous level and add it to existing tile
+        /*
         if(m_image->getNrOfChannels() >= 3) {
             // Use average if RGB(A) image
             for(int dy = 0; dy < tileHeight/2; ++dy) {
@@ -449,7 +471,7 @@ void ImagePyramidAccess::setPatch(int level, int x, int y, Image::pointer patch)
                             previousData[dx*2 + (dy*2+1)*previousTileWidth])/4);
                 }
             }
-        } else {
+        } else {*/
             // Use majority vote if single channel image.
             for(int dy = 0; dy < tileHeight/2; ++dy) {
                 for(int dx = 0; dx < tileWidth/2; ++dx) {
@@ -470,23 +492,30 @@ void ImagePyramidAccess::setPatch(int level, int x, int y, Image::pointer patch)
 
                     // Just do max? 0.006 milliseconds
                     uchar list[4] = {
-                            previousData[dx*2 + dy*2*previousTileWidth],
-                            previousData[dx*2 + 1 + dy*2*previousTileWidth],
-                            previousData[dx*2 + 1 + (dy*2+1)*previousTileWidth],
-                            previousData[dx*2 + (dy*2+1)*previousTileWidth]
+                            previousData[(dx*2 + dy*2*previousTileWidth)*3],
+                            previousData[(dx*2 + 1 + dy*2*previousTileWidth)*3],
+                            previousData[(dx*2 + 1 + (dy*2+1)*previousTileWidth)*3],
+                            previousData[(dx*2 + (dy*2+1)*previousTileWidth)*3]
                     };
                     newData[dx + offsetX*tileWidth/2 + (dy+offsetY*tileHeight/2)*tileWidth] = std::max(std::max(std::max(list[0], list[1]), list[2]), list[3]);
                 }
             }
-        }
+        //}
         {
             std::lock_guard<std::mutex> lock(m_readMutex);
             TIFFSetDirectory(m_tiffHandle, level);
-            TIFFWriteTile(m_tiffHandle, (void *) newData.get(), x, y, 0, 0);
+            // Convert single channel to 3 channel
+            auto colorData2 = make_uninitialized_unique<uchar[]>(tileWidth*tileHeight*3);
+            for(int i = 0; i < tileWidth*tileHeight; ++i) {
+                colorData2[i*3] = newData[i];
+                colorData2[i*3+1] = newData[i];
+                colorData2[i*3+2] = newData[i];
+            }
+            TIFFWriteTile(m_tiffHandle, (void *) colorData2.get(), x, y, 0, 0);
             TIFFCheckpointDirectory(m_tiffHandle);
             tile_id = TIFFComputeTile(m_tiffHandle, x, y, 0, 0);
+            previousData = std::move(colorData2);
         }
-        previousData = std::move(newData);
 
         int levelWidth = m_image->getLevelWidth(level);
         int levelHeight = m_image->getLevelHeight(level);

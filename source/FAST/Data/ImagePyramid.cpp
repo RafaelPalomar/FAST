@@ -55,10 +55,11 @@ ImagePyramid::ImagePyramid(int width, int height, int channels, int patchWidth, 
     uint photometric = PHOTOMETRIC_RGB;
     uint bitsPerSample = 8;
     uint samplesPerPixel = 3; // RGBA image pyramid is converted to RGB with getPatchAsImage
+    /*
     if(channels == 1) {
         photometric = PHOTOMETRIC_MINISBLACK; // Photometric mask causes crash..
         samplesPerPixel = 1;
-    }
+    }*/
 
     while(true) {
 		currentWidth = width / std::pow(2, currentLevel);
