@@ -6,6 +6,36 @@
 
 FAST is an open-source framework with the main goal of making it easier to do high-performance processing, neural network inference, and visualization of medical images utilizing multi-core CPUs and GPUs. To achieve this, FAST use modern C++, OpenCL and OpenGL, and neural network inference libraries such as TensorRT, OpenVINO, TensorFlow and ONNX Runtime.
 
+### Quick example
+![Ultrasound image segmentation using neural netwoks.](https://github.com/smistad/FAST/wiki/images/ultrasound_segmentation.jpg)
+```python
+# Neural network ultrasound video segmentation example
+import fast # Install FAST with 'pip install pyfast'
+
+fast.downloadTestDataIfNotExists()
+
+streamer = fast.ImageFileStreamer.create(
+    fast.Config.getTestDataPath() + 'US/JugularVein/US-2D_#.mhd')
+
+segmentation = fast.SegmentationNetwork.create(
+    fast.Config.getTestDataPath() + 'NeuralNetworkModels/jugular_vein_segmentation.onnx',
+    scaleFactor=1./255.)\
+    .connect(streamer)
+
+imgRenderer = fast.ImageRenderer.create()\
+    .connect(streamer)
+
+segRenderer = fast.SegmentationRenderer.create(
+    opacity=0.25, colors={1: fast.Color.Red(), 2: fast.Color.Blue()})\
+    .connect(segmentation)
+
+fast.SimpleWindow2D.create(bgcolor=fast.Color.Black())\
+    .connect([imgRenderer, segRenderer])\
+    .run() 
+```
+
+See more [Python examples](https://fast.eriksmistad.no/python-examples.html) and [C++ examples](https://fast.eriksmistad.no/cpp-examples.html).
+
 ### Get started
 See installation instructions for [Windows](https://fast.eriksmistad.no/install-windows.html), [Ubuntu Linux](https://fast.eriksmistad.no/install-ubuntu-linux.html) and [macOS](https://fast.eriksmistad.no/install-mac.html).
 
